@@ -22,7 +22,7 @@ export const App: React.FC = () => {
   const [newTodoTask, setNewTodoTask] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tempTodo, setTempTodo] = useState<Todo | null>(null);
-  const [isDeleting, setIsDeleting] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState<number[]>([]);
 
   const visibleTodos = todos.filter(todo => {
     if (filterStatus === FilterStatus.Active) {
@@ -44,7 +44,8 @@ export const App: React.FC = () => {
   function loadTodos() {
     setLoading(true);
 
-    postService.getTodos()
+    postService
+      .getTodos()
       .then(setTodos)
       .catch(() => setErrorMessage(ErrorType.Load))
       .finally(() => setLoading(false));
@@ -53,78 +54,97 @@ export const App: React.FC = () => {
   useEffect(loadTodos, []);
 
   const handleTaskChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-  setNewTodoTask(event.target.value);
-  setErrorMessage('');
-};
+    setNewTodoTask(event.target.value);
+    setErrorMessage('');
+  };
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     const trimSpacesTitle = newTodoTask.trim();
+
     if (!trimSpacesTitle) {
       setErrorMessage(ErrorType.EmptyTitle);
-      return
+
+      return;
     }
-   setIsSubmitting(true);
 
-   const newTempTodo: Todo = {
-    id: 0,
-    title: trimSpacesTitle,
-    userId: postService.USER_ID,
-    completed: false,
-  };
+    setIsSubmitting(true);
 
-    setTempTodo(newTempTodo);
-
-    postService.createTodo({
+    const newTempTodo: Todo = {
+      id: 0,
       title: trimSpacesTitle,
       userId: postService.USER_ID,
       completed: false,
-     })
+    };
 
-    .then(newTodo => {
-      setTodos(currentTodo => [...currentTodo, newTodo]);
-      setNewTodoTask('');
-  })
-     .catch(() => setErrorMessage(ErrorType.Add))
-     .finally(() => {
-      setTempTodo(null);
-      setIsSubmitting(false);
-  });
-};
- const field = useRef<HTMLInputElement>(null);
+    setTempTodo(newTempTodo);
 
- useEffect(() => {
-   if(!isSubmitting && !loading && isDeleting === null) {
-    const timeoutId =setTimeout(() => {field.current?.focus()},
-    50);
-    return () => clearTimeout(timeoutId);
-   }
-   return undefined;
- }, [isSubmitting, loading, isDeleting]);
+    postService
+      .createTodo({
+        title: trimSpacesTitle,
+        userId: postService.USER_ID,
+        completed: false,
+      })
 
-function deleteItem(todoId: number) {
-  setLoading(true);
-  setIsDeleting(todoId);
-  postService.deleteTodo(todoId)
-  .then(() => {
-  setTodos(currentItem => currentItem.filter(todo => todo.id !== todoId));
-  })
-  .catch(() => setErrorMessage(ErrorType.Delete))
-  .finally(() =>
-    setIsDeleting(null));
+      .then(newTodo => {
+        setTodos(currentTodo => [...currentTodo, newTodo]);
+        setNewTodoTask('');
+      })
+      .catch(() => setErrorMessage(ErrorType.Add))
+      .finally(() => {
+        setTempTodo(null);
+        setIsSubmitting(false);
+      });
+  };
+
+  const field = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isSubmitting && !loading && isDeleting.length === 0) {
+      const timeoutId = setTimeout(() => {
+        field.current?.focus();
+      }, 50);
+
+      return () => clearTimeout(timeoutId);
+    }
+
+    return undefined;
+  }, [isSubmitting, loading, isDeleting]);
+
+  function deleteItem(todoId: number) {
+    setLoading(true);
+    setIsDeleting(current => [...current, todoId]);
+    postService
+      .deleteTodo(todoId)
+      .then(() => {
+        setTodos(currentItem => currentItem.filter(todo => todo.id !== todoId));
+      })
+      .catch(() => setErrorMessage(ErrorType.Delete))
+      .finally(() => setIsDeleting(current => current.filter(id => id !== todoId)));
     setLoading(false);
-}
+  }
+
+    const clearCompleted = () => {
+    const completedIds = todos.filter(todo => todo.completed);
+
+    completedIds.forEach(todo => {
+      deleteItem(todo.id);
+    });
+  };
+
+  const toggleTodo = (todoId: number) => {
+  setTodos(prev => prev.map(todo =>
+    todo.id === todoId
+      ? { ...todo, completed: !todo.completed }
+      : todo
+  ));
+};
 
   if (!postService.USER_ID) {
     return <UserWarning />;
   }
 
-  const clearCompleted = () => {
-    const completedIds = todos.filter(todo => todo.completed);
-    completedIds.forEach(todo => {
-      deleteItem(todo.id);
-    });
-  };
+
 
   return (
     <div className="todoapp">
@@ -136,6 +156,7 @@ function deleteItem(todoId: number) {
             type="button"
             className={`todoapp__toggle-all ${isAllCompleted ? 'active' : ''}`}
             data-cy="ToggleAllButton"
+
           />
           <form onSubmit={handleSubmit}>
             <input
@@ -147,39 +168,32 @@ function deleteItem(todoId: number) {
               value={newTodoTask}
               onChange={handleTaskChange}
               disabled={isSubmitting}
-              />
+            />
           </form>
         </header>
 
         <section className="todoapp__main" data-cy="TodoList">
           <TransitionGroup>
-          {visibleTodos.map(todo => (
-            <CSSTransition
-            key={todo.id}
-            timeout={300}
-            classNames="item"
-          >
-            <TodoItem
-             key={todo.id}
-             todo={todo}
-             onDelete={deleteItem}
-             isLoading={isDeleting === todo.id}
-             />
-          </CSSTransition>
-        ))}
-           {tempTodo && (
-      <CSSTransition
-      key={0}
-      timeout={300}
-      classNames="temp-item"
-      >
-      <TodoItem
-        todo={tempTodo}
-        onDelete={() => {}}
-        isLoading={true}
-      />
-    </CSSTransition>
-         )}
+            {visibleTodos.map(todo => (
+              <CSSTransition key={todo.id} timeout={300} classNames="item">
+                <TodoItem
+                  key={todo.id}
+                  todo={todo}
+                  onChange={() => toggleTodo(todo.id)}
+                  onDelete={deleteItem}
+                  isLoading={isDeleting.includes(todo.id)}
+                />
+              </CSSTransition>
+            ))}
+            {tempTodo && (
+              <CSSTransition key={0} timeout={300} classNames="temp-item">
+                <TodoItem
+                  todo={tempTodo}
+                  onDelete={() => {}}
+                  isLoading={true}
+                />
+              </CSSTransition>
+            )}
           </TransitionGroup>
         </section>
 

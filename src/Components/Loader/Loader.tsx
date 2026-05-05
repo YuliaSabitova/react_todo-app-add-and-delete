@@ -6,8 +6,8 @@ type Props = {
 export const Loader: React.FC<Props> = ({ isLoading = true }) => {
   return (
     <div
-    data-cy="TodoLoader"
-    className={`modal overlay ${isLoading ? 'is-active' : ''}`}
+      data-cy="TodoLoader"
+      className={`modal overlay ${isLoading ? 'is-active' : ''}`}
     >
       <div className="modal-background has-background-white-ter" />
       <div className="loader" />

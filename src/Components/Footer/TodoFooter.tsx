@@ -15,7 +15,7 @@ export const TodoFooter: React.FC<Props> = ({
   hasCompleted,
   filterStatus,
   onFilterChange,
-  onClearCompleted
+  onClearCompleted,
 }) => {
   return (
     <footer className="todoapp__footer" data-cy="Footer">
